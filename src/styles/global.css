@@ -1,1 +1,38 @@
 @import "tailwindcss";
+
+html.high-contrast body {
+    background-color: #000 !important;
+    color: #fff !important;
+}
+
+html.high-contrast :where([class*="bg-"]) {
+    background-color: #000 !important;
+    background-image: none !important;
+}
+
+html.high-contrast :where([class*="text-"]) {
+    color: #fff !important;
+}
+
+html.high-contrast header {
+    border-bottom: 2px solid #fff;
+}
+
+html.high-contrast nav,
+html.high-contrast :where([class*="border-"]) {
+    border-color: #fff !important;
+}
+
+html.high-contrast a {
+    color: #ffff00 !important;
+}
+
+html.high-contrast button {
+    border-color: #fff !important;
+    color: #fff !important;
+}
+
+html.high-contrast :focus-visible {
+    outline: 3px solid #ffff00 !important;
+    outline-offset: 3px;
+}
