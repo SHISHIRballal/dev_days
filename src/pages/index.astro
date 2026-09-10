@@ -5,10 +5,17 @@ import PageHero from '../components/PageHero.astro';
 import EmptyState from '../components/EmptyState.astro';
 import { getDatabase } from '../lib/db';
 import { getAllGames } from '../lib/games';
+import { getAllCategories } from '../lib/categories';
+import { getAllPublishers } from '../lib/publishers';
 
 export const prerender = true;
 
-const games = await getAllGames(getDatabase());
+const database = getDatabase();
+const [games, categories, publishers] = await Promise.all([
+  getAllGames(database),
+  getAllCategories(database),
+  getAllPublishers(database),
+]);
 ---
 
 <Layout title="Tailspin Toys - Crowdfunding your new favorite game!">
@@ -18,16 +25,122 @@ const games = await getAllGames(getDatabase());
       subtitle="Find your next game! And maybe even back one! Explore our collection!"
     />
 
-    <div>
+    <div data-testid="catalog">
       <h2 class="text-2xl font-medium mb-6 text-slate-100">Featured Games</h2>
 
       {games.length === 0 ? (
         <EmptyState text="No games available at the moment." />
       ) : (
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="games-grid">
+        <>
+          <form method="get" class="mb-8 rounded-xl border border-slate-700 bg-slate-800/60 p-6" data-testid="game-filters">
+            <fieldset>
+              <legend class="text-lg font-semibold text-slate-100">Filter games</legend>
+              <div class="mt-4 grid gap-4 md:grid-cols-2">
+                <div>
+                  <label for="category-filter" class="mb-2 block text-sm font-medium text-slate-200">
+                    Categories
+                  </label>
+                  <select
+                    id="category-filter"
+                    name="category"
+                    multiple
+                    size={Math.min(Math.max(categories.length, 3), 6)}
+                    class="min-h-32 w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-slate-100 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    data-testid="category-filter"
+                  >
+                    {categories.map((category) => (
+                      <option value={category.id}>{category.name}</option>
+                    ))}
+                  </select>
+                  <p class="mt-2 text-sm text-slate-400">Use Ctrl or Command to select more than one.</p>
+                </div>
+
+                <div>
+                  <label for="publisher-filter" class="mb-2 block text-sm font-medium text-slate-200">
+                    Publisher
+                  </label>
+                  <select
+                    id="publisher-filter"
+                    name="publisher"
+                    class="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-slate-100 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    data-testid="publisher-filter"
+                  >
+                    <option value="">All publishers</option>
+                    {publishers.map((publisher) => (
+                      <option value={publisher.id}>{publisher.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div class="mt-4 flex flex-wrap items-center gap-3">
+                <button
+                  type="submit"
+                  class="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  data-testid="apply-filters"
+                >
+                  Apply filters
+                </button>
+                <a
+                  href="/"
+                  class="rounded-lg border border-slate-600 px-4 py-2 font-medium text-slate-200 transition-colors hover:bg-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  data-testid="clear-filters"
+                >
+                  Clear filters
+                </a>
+              </div>
+            </fieldset>
+          </form>
+
+          <p class="mb-4 text-sm text-slate-400" aria-live="polite" data-testid="filter-results">
+            Showing {games.length} games
+          </p>
+
+          <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3" data-testid="games-grid">
           {games.map((game) => <GameCard game={game} />)}
-        </div>
+          </div>
+          <div class="hidden" data-testid="filtered-empty">
+            <EmptyState text="No games match those filters." />
+          </div>
+        </>
       )}
     </div>
   </div>
 </Layout>
+
+<script>
+  const form = document.querySelector<HTMLFormElement>('[data-testid="game-filters"]');
+  const categoryFilter = document.querySelector<HTMLSelectElement>('[data-testid="category-filter"]');
+  const publisherFilter = document.querySelector<HTMLSelectElement>('[data-testid="publisher-filter"]');
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-testid="game-card"]'));
+  const grid = document.querySelector<HTMLElement>('[data-testid="games-grid"]');
+  const emptyState = document.querySelector<HTMLElement>('[data-testid="filtered-empty"]');
+  const results = document.querySelector<HTMLElement>('[data-testid="filter-results"]');
+
+  if (form && categoryFilter && publisherFilter && grid && emptyState && results) {
+    const params = new URLSearchParams(window.location.search);
+    const selectedCategories = params.getAll('category');
+    const selectedPublisher = params.get('publisher') ?? '';
+
+    for (const option of categoryFilter.options) {
+      option.selected = selectedCategories.includes(option.value);
+    }
+    publisherFilter.value = selectedPublisher;
+
+    const matches = cards.filter((card) => {
+      const categoryId = card.dataset.categoryId;
+      const publisherId = card.dataset.publisherId;
+      const categoryMatches =
+        selectedCategories.length === 0 ||
+        (categoryId !== undefined && selectedCategories.includes(categoryId));
+      const publisherMatches = selectedPublisher === '' || publisherId === selectedPublisher;
+
+      card.hidden = !(categoryMatches && publisherMatches);
+      return categoryMatches && publisherMatches;
+    });
+
+    grid.hidden = matches.length === 0;
+    emptyState.classList.toggle('hidden', matches.length > 0);
+    results.textContent = `Showing ${matches.length} ${matches.length === 1 ? 'game' : 'games'}`;
+  }
+</script>

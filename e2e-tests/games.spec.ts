@@ -1,6 +1,45 @@
 import { test, expect, type Response } from '@playwright/test';
 
 test.describe('Game Listing and Navigation', () => {
+  test('should filter games by category and publisher', async ({ page }) => {
+    await test.step('Navigate to the catalog', async () => {
+      await page.goto('/');
+      await expect(page.getByTestId('game-filters')).toBeVisible();
+    });
+
+    await test.step('Apply category and publisher filters', async () => {
+      await page.getByTestId('category-filter').selectOption({ label: 'Strategy' });
+      await page.getByTestId('publisher-filter').selectOption({ label: 'CodeForge Studios' });
+      await page.getByTestId('apply-filters').click();
+    });
+
+    await test.step('Verify filtered URL and matching game cards', async () => {
+      await expect(page).toHaveURL(/\/\?category=\d+&publisher=\d+/);
+      await expect(page.getByTestId('games-grid')).toBeVisible();
+      const visibleGameCards = page.locator('[data-testid="game-card"]:visible');
+      await expect(visibleGameCards).toHaveCount(1);
+      await expect(visibleGameCards.getByTestId('game-title')).toHaveText('DevOps Dominion');
+      await expect(page.getByTestId('filter-results')).toHaveText('Showing 1 game');
+    });
+  });
+
+  test('should show an empty state and clear active filters', async ({ page }) => {
+    await page.goto('/?category=99999&publisher=99999');
+
+    await test.step('Verify the no-results state', async () => {
+      await expect(page.getByTestId('games-grid')).toBeHidden();
+      await expect(page.getByTestId('filtered-empty')).toBeVisible();
+      await expect(page.getByTestId('filter-results')).toHaveText('Showing 0 games');
+    });
+
+    await test.step('Clear filters', async () => {
+      await page.getByTestId('clear-filters').click();
+      await expect(page).toHaveURL('/');
+      await expect(page.getByTestId('games-grid')).toBeVisible();
+      await expect(page.getByTestId('game-card').first()).toBeVisible();
+    });
+  });
+
   test('should display games with titles on index page', async ({ page }) => {
     await test.step('Navigate to homepage', async () => {
       await page.goto('/');
